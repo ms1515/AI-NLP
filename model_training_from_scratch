@@ -1,0 +1,1018 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "01_how-to-train.ipynb",
+      "provenance": [],
+      "collapsed_sections": [],
+      "machine_shape": "hm",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/ms1515/AI-NLP/blob/main/model_training_from_scratch\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "e67Ut53QYEdU",
+        "cellView": "form",
+        "outputId": "02d8f8f9-6486-49ff-ce21-6e403c7fc410",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 104
+        }
+      },
+      "source": [
+        "#@title\n",
+        "%%html\n",
+        "<div style=\"background-color: pink;\">\n",
+        "  Notebook written in collaboration with <a href=\"https://github.com/aditya-malte\">Aditya Malte</a>.\n",
+        "  <br>\n",
+        "  The Notebook is on GitHub, so contributions are more than welcome.\n",
+        "</div>\n",
+        "<br>\n",
+        "<div style=\"background-color: yellow;\">\n",
+        "  Aditya wrote another notebook with a slightly different use case and methodology, please check it out.\n",
+        "  <br>\n",
+        "  <a target=\"_blank\" href=\"https://gist.github.com/aditya-malte/2d4f896f471be9c38eb4d723a710768b\">\n",
+        "    https://gist.github.com/aditya-malte/2d4f896f471be9c38eb4d723a710768b\n",
+        "  </a>\n",
+        "</div>\n"
+      ],
+      "execution_count": 1,
+      "outputs": [
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<IPython.core.display.HTML object>"
+            ],
+            "text/html": [
+              "<div style=\"background-color: pink;\">\n",
+              "  Notebook written in collaboration with <a href=\"https://github.com/aditya-malte\">Aditya Malte</a>.\n",
+              "  <br>\n",
+              "  The Notebook is on GitHub, so contributions are more than welcome.\n",
+              "</div>\n",
+              "<br>\n",
+              "<div style=\"background-color: yellow;\">\n",
+              "  Aditya wrote another notebook with a slightly different use case and methodology, please check it out.\n",
+              "  <br>\n",
+              "  <a target=\"_blank\" href=\"https://gist.github.com/aditya-malte/2d4f896f471be9c38eb4d723a710768b\">\n",
+              "    https://gist.github.com/aditya-malte/2d4f896f471be9c38eb4d723a710768b\n",
+              "  </a>\n",
+              "</div>"
+            ]
+          },
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "M1oqh0F6W3ad"
+      },
+      "source": [
+        "# How to train a new language model from scratch using Transformers and Tokenizers\n",
+        "\n",
+        "### Notebook edition (link to blogpost [link](https://huggingface.co/blog/how-to-train)). Last update May 15, 2020\n",
+        "\n",
+        "\n",
+        "Over the past few months, we made several improvements to our [`transformers`](https://github.com/huggingface/transformers) and [`tokenizers`](https://github.com/huggingface/tokenizers) libraries, with the goal of making it easier than ever to **train a new language model from scratch**.\n",
+        "\n",
+        "In this post we’ll demo how to train a “small” model (84 M parameters = 6 layers, 768 hidden size, 12 attention heads) – that’s the same number of layers & heads as DistilBERT – on **Esperanto**. We’ll then fine-tune the model on a downstream task of part-of-speech tagging.\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "oK7PPVm2XBgr"
+      },
+      "source": [
+        "## 1. Find a dataset\n",
+        "\n",
+        "First, let us find a corpus of text in Esperanto. Here we’ll use the Esperanto portion of the [OSCAR corpus](https://traces1.inria.fr/oscar/) from INRIA.\n",
+        "OSCAR is a huge multilingual corpus obtained by language classification and filtering of [Common Crawl](https://commoncrawl.org/) dumps of the Web.\n",
+        "\n",
+        "<img src=\"https://huggingface.co/blog/assets/01_how-to-train/oscar.png\" style=\"margin: auto; display: block; width: 260px;\">\n",
+        "\n",
+        "The Esperanto portion of the dataset is only 299M, so we’ll concatenate with the Esperanto sub-corpus of the [Leipzig Corpora Collection](https://wortschatz.uni-leipzig.de/en/download), which is comprised of text from diverse sources like news, literature, and wikipedia.\n",
+        "\n",
+        "The final training corpus has a size of 3 GB, which is still small – for your model, you will get better results the more data you can get to pretrain on. \n",
+        "\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "HOk4iZ9YZvec",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "43e462ad-9dad-4b56-94ae-ad1f9088b20b"
+      },
+      "source": [
+        "# in this notebook we'll only get one of the files (the Oscar one) for the sake of simplicity and performance\n",
+        "!wget -c https://github.com/eyalmazuz/ThreatIntelligenceCorpus"
+      ],
+      "execution_count": 2,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "--2022-08-06 19:09:07--  https://cdn-datasets.huggingface.co/EsperBERTo/data/oscar.eo.txt\n",
+            "Resolving cdn-datasets.huggingface.co (cdn-datasets.huggingface.co)... 18.64.174.50, 18.64.174.56, 18.64.174.70, ...\n",
+            "Connecting to cdn-datasets.huggingface.co (cdn-datasets.huggingface.co)|18.64.174.50|:443... connected.\n",
+            "HTTP request sent, awaiting response... 200 OK\n",
+            "Length: 312733741 (298M) [text/plain]\n",
+            "Saving to: ‘oscar.eo.txt’\n",
+            "\n",
+            "oscar.eo.txt        100%[===================>] 298.25M  47.5MB/s    in 6.1s    \n",
+            "\n",
+            "2022-08-06 19:09:13 (48.9 MB/s) - ‘oscar.eo.txt’ saved [312733741/312733741]\n",
+            "\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "G-kkz81OY6xH"
+      },
+      "source": [
+        "## 2. Train a tokenizer\n",
+        "\n",
+        "We choose to train a byte-level Byte-pair encoding tokenizer (the same as GPT-2), with the same special tokens as RoBERTa. Let’s arbitrarily pick its size to be 52,000.\n",
+        "\n",
+        "We recommend training a byte-level BPE (rather than let’s say, a WordPiece tokenizer like BERT) because it will start building its vocabulary from an alphabet of single bytes, so all words will be decomposable into tokens (no more `<unk>` tokens!).\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "5duRggBRZKvP",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "b6cd1921-8418-4ae1-c498-ff9b62f33e94"
+      },
+      "source": [
+        "# We won't need TensorFlow here\n",
+        "!pip uninstall -y tensorflow\n",
+        "# Install `transformers` from master\n",
+        "!pip install git+https://github.com/huggingface/transformers\n",
+        "!pip list | grep -E 'transformers|tokenizers'\n",
+        "# transformers version at notebook update --- 2.11.0\n",
+        "# tokenizers version at notebook update --- 0.8.0rc1"
+      ],
+      "execution_count": 3,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Found existing installation: tensorflow 2.8.2+zzzcolab20220719082949\n",
+            "Uninstalling tensorflow-2.8.2+zzzcolab20220719082949:\n",
+            "  Successfully uninstalled tensorflow-2.8.2+zzzcolab20220719082949\n",
+            "Looking in indexes: https://pypi.org/simple, https://us-python.pkg.dev/colab-wheels/public/simple/\n",
+            "Collecting git+https://github.com/huggingface/transformers\n",
+            "  Cloning https://github.com/huggingface/transformers to /tmp/pip-req-build-xynb1lxe\n",
+            "  Running command git clone -q https://github.com/huggingface/transformers /tmp/pip-req-build-xynb1lxe\n",
+            "  Installing build dependencies ... \u001b[?25l\u001b[?25hdone\n",
+            "  Getting requirements to build wheel ... \u001b[?25l\u001b[?25hdone\n",
+            "    Preparing wheel metadata ... \u001b[?25l\u001b[?25hdone\n",
+            "Requirement already satisfied: packaging>=20.0 in /usr/local/lib/python3.7/dist-packages (from transformers==4.22.0.dev0) (21.3)\n",
+            "Requirement already satisfied: regex!=2019.12.17 in /usr/local/lib/python3.7/dist-packages (from transformers==4.22.0.dev0) (2022.6.2)\n",
+            "Requirement already satisfied: filelock in /usr/local/lib/python3.7/dist-packages (from transformers==4.22.0.dev0) (3.7.1)\n",
+            "Collecting pyyaml>=5.1\n",
+            "  Downloading PyYAML-6.0-cp37-cp37m-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl (596 kB)\n",
+            "\u001b[K     |████████████████████████████████| 596 kB 2.7 MB/s \n",
+            "\u001b[?25hRequirement already satisfied: importlib-metadata in /usr/local/lib/python3.7/dist-packages (from transformers==4.22.0.dev0) (4.12.0)\n",
+            "Collecting huggingface-hub<1.0,>=0.8.1\n",
+            "  Downloading huggingface_hub-0.8.1-py3-none-any.whl (101 kB)\n",
+            "\u001b[K     |████████████████████████████████| 101 kB 10.9 MB/s \n",
+            "\u001b[?25hRequirement already satisfied: requests in /usr/local/lib/python3.7/dist-packages (from transformers==4.22.0.dev0) (2.23.0)\n",
+            "Requirement already satisfied: tqdm>=4.27 in /usr/local/lib/python3.7/dist-packages (from transformers==4.22.0.dev0) (4.64.0)\n",
+            "Collecting tokenizers!=0.11.3,<0.13,>=0.11.1\n",
+            "  Downloading tokenizers-0.12.1-cp37-cp37m-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (6.6 MB)\n",
+            "\u001b[K     |████████████████████████████████| 6.6 MB 59.3 MB/s \n",
+            "\u001b[?25hRequirement already satisfied: numpy>=1.17 in /usr/local/lib/python3.7/dist-packages (from transformers==4.22.0.dev0) (1.21.6)\n",
+            "Requirement already satisfied: typing-extensions>=3.7.4.3 in /usr/local/lib/python3.7/dist-packages (from huggingface-hub<1.0,>=0.8.1->transformers==4.22.0.dev0) (4.1.1)\n",
+            "Requirement already satisfied: pyparsing!=3.0.5,>=2.0.2 in /usr/local/lib/python3.7/dist-packages (from packaging>=20.0->transformers==4.22.0.dev0) (3.0.9)\n",
+            "Requirement already satisfied: zipp>=0.5 in /usr/local/lib/python3.7/dist-packages (from importlib-metadata->transformers==4.22.0.dev0) (3.8.1)\n",
+            "Requirement already satisfied: certifi>=2017.4.17 in /usr/local/lib/python3.7/dist-packages (from requests->transformers==4.22.0.dev0) (2022.6.15)\n",
+            "Requirement already satisfied: urllib3!=1.25.0,!=1.25.1,<1.26,>=1.21.1 in /usr/local/lib/python3.7/dist-packages (from requests->transformers==4.22.0.dev0) (1.24.3)\n",
+            "Requirement already satisfied: idna<3,>=2.5 in /usr/local/lib/python3.7/dist-packages (from requests->transformers==4.22.0.dev0) (2.10)\n",
+            "Requirement already satisfied: chardet<4,>=3.0.2 in /usr/local/lib/python3.7/dist-packages (from requests->transformers==4.22.0.dev0) (3.0.4)\n",
+            "Building wheels for collected packages: transformers\n",
+            "  Building wheel for transformers (PEP 517) ... \u001b[?25l\u001b[?25hdone\n",
+            "  Created wheel for transformers: filename=transformers-4.22.0.dev0-py3-none-any.whl size=4703241 sha256=58926ab353ad20c80e76b80a8dc4c543a83b680837748f7cd9e02bee0ee60dcc\n",
+            "  Stored in directory: /tmp/pip-ephem-wheel-cache-zvo27cx3/wheels/35/2e/a7/d819e3310040329f0f47e57c9e3e7a7338aa5e74c49acfe522\n",
+            "Successfully built transformers\n",
+            "Installing collected packages: pyyaml, tokenizers, huggingface-hub, transformers\n",
+            "  Attempting uninstall: pyyaml\n",
+            "    Found existing installation: PyYAML 3.13\n",
+            "    Uninstalling PyYAML-3.13:\n",
+            "      Successfully uninstalled PyYAML-3.13\n",
+            "Successfully installed huggingface-hub-0.8.1 pyyaml-6.0 tokenizers-0.12.1 transformers-4.22.0.dev0\n",
+            "tokenizers                    0.12.1\n",
+            "transformers                  4.22.0.dev0\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "IMnymRDLe0hi",
+        "outputId": "c3eb5c88-e779-46a5-e0f1-c9f08e073b65",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "%%time \n",
+        "from pathlib import Path\n",
+        "\n",
+        "from tokenizers import ByteLevelBPETokenizer\n",
+        "\n",
+        "paths = [str(x) for x in Path(\".\").glob(\"**/*.txt\")]\n",
+        "\n",
+        "# Initialize a tokenizer\n",
+        "tokenizer = ByteLevelBPETokenizer()\n",
+        "\n",
+        "# Customize training\n",
+        "tokenizer.train(files=paths, vocab_size=52_000, min_frequency=2, special_tokens=[\n",
+        "    \"<s>\",\n",
+        "    \"<pad>\",\n",
+        "    \"</s>\",\n",
+        "    \"<unk>\",\n",
+        "    \"<mask>\",\n",
+        "])"
+      ],
+      "execution_count": 4,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "CPU times: user 7min 12s, sys: 5.58 s, total: 7min 17s\n",
+            "Wall time: 2min 9s\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "6Ei7bqpRf1LH"
+      },
+      "source": [
+        "Now let's save files to disk"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "EIS-irI0f32P",
+        "outputId": "febb855d-5193-44b6-d4a6-5728df102a33",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "!mkdir EsperBERTo\n",
+        "tokenizer.save_model(\"securityBERT\")"
+      ],
+      "execution_count": 5,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "['EsperBERTo/vocab.json', 'EsperBERTo/merges.txt']"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 5
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "lOOfYSuQhSqT"
+      },
+      "source": [
+        "🔥🔥 Wow, that was fast! ⚡️🔥\n",
+        "\n",
+        "We now have both a `vocab.json`, which is a list of the most frequent tokens ranked by frequency, and a `merges.txt` list of merges.\n",
+        "\n",
+        "```json\n",
+        "{\n",
+        "\t\"<s>\": 0,\n",
+        "\t\"<pad>\": 1,\n",
+        "\t\"</s>\": 2,\n",
+        "\t\"<unk>\": 3,\n",
+        "\t\"<mask>\": 4,\n",
+        "\t\"!\": 5,\n",
+        "\t\"\\\"\": 6,\n",
+        "\t\"#\": 7,\n",
+        "\t\"$\": 8,\n",
+        "\t\"%\": 9,\n",
+        "\t\"&\": 10,\n",
+        "\t\"'\": 11,\n",
+        "\t\"(\": 12,\n",
+        "\t\")\": 13,\n",
+        "\t# ...\n",
+        "}\n",
+        "\n",
+        "# merges.txt\n",
+        "l a\n",
+        "Ġ k\n",
+        "o n\n",
+        "Ġ la\n",
+        "t a\n",
+        "Ġ e\n",
+        "Ġ d\n",
+        "Ġ p\n",
+        "# ...\n",
+        "```\n",
+        "\n",
+        "What is great is that our tokenizer is optimized for Esperanto. Compared to a generic tokenizer trained for English, more native words are represented by a single, unsplit token. Diacritics, i.e. accented characters used in Esperanto – `ĉ`, `ĝ`, `ĥ`, `ĵ`, `ŝ`, and `ŭ` – are encoded natively. We also represent sequences in a more efficient manner. Here on this corpus, the average length of encoded sequences is ~30% smaller as when using the pretrained GPT-2 tokenizer.\n",
+        "\n",
+        "Here’s  how you can use it in `tokenizers`, including handling the RoBERTa special tokens – of course, you’ll also be able to use it directly from `transformers`.\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "tKVWB8WShT-z"
+      },
+      "source": [
+        "from tokenizers.implementations import ByteLevelBPETokenizer\n",
+        "from tokenizers.processors import BertProcessing\n",
+        "\n",
+        "\n",
+        "tokenizer = ByteLevelBPETokenizer(\n",
+        "    \"./EsperBERTo/vocab.json\",\n",
+        "    \"./EsperBERTo/merges.txt\",\n",
+        ")"
+      ],
+      "execution_count": 6,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "hO5M3vrAhcuj"
+      },
+      "source": [
+        "tokenizer._tokenizer.post_processor = BertProcessing(\n",
+        "    (\"</s>\", tokenizer.token_to_id(\"</s>\")),\n",
+        "    (\"<s>\", tokenizer.token_to_id(\"<s>\")),\n",
+        ")\n",
+        "tokenizer.enable_truncation(max_length=512)"
+      ],
+      "execution_count": 7,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "E3Ye27nchfzq",
+        "outputId": "e90fe2b0-ad25-4bca-825f-3f3d63c407dc",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "tokenizer.encode(\"Mi estas Julien.\")"
+      ],
+      "execution_count": 8,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "Encoding(num_tokens=7, attributes=[ids, type_ids, tokens, offsets, attention_mask, special_tokens_mask, overflowing])"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 8
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "X8ya5_7rhjKS",
+        "outputId": "194c3b2f-064f-4699-f3c7-2ba59ae0ba54",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "tokenizer.encode(\"Mi estas Julien.\").tokens"
+      ],
+      "execution_count": 9,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "['<s>', 'Mi', 'Ġestas', 'ĠJuli', 'en', '.', '</s>']"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 9
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "WQpUC_CDhnWW"
+      },
+      "source": [
+        "## 3. Train a language model from scratch\n",
+        "\n",
+        "**Update:** This section follows along the [`run_language_modeling.py`](https://github.com/huggingface/transformers/blob/master/examples/legacy/run_language_modeling.py) script, using our new [`Trainer`](https://github.com/huggingface/transformers/blob/master/src/transformers/trainer.py) directly. Feel free to pick the approach you like best.\n",
+        "\n",
+        "> We’ll train a RoBERTa-like model, which is a BERT-like with a couple of changes (check the [documentation](https://huggingface.co/transformers/model_doc/roberta.html) for more details).\n",
+        "\n",
+        "As the model is BERT-like, we’ll train it on a task of *Masked language modeling*, i.e. the predict how to fill arbitrary tokens that we randomly mask in the dataset. This is taken care of by the example script.\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "kD140sFjh0LQ",
+        "outputId": "8cf680e7-ec96-4580-b796-15544ae2b40b",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "# Check that we have a GPU\n",
+        "!nvidia-smi"
+      ],
+      "execution_count": 10,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Sat Aug  6 19:12:13 2022       \n",
+            "+-----------------------------------------------------------------------------+\n",
+            "| NVIDIA-SMI 460.32.03    Driver Version: 460.32.03    CUDA Version: 11.2     |\n",
+            "|-------------------------------+----------------------+----------------------+\n",
+            "| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |\n",
+            "| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |\n",
+            "|                               |                      |               MIG M. |\n",
+            "|===============================+======================+======================|\n",
+            "|   0  Tesla P100-PCIE...  Off  | 00000000:00:04.0 Off |                    0 |\n",
+            "| N/A   38C    P0    27W / 250W |      0MiB / 16280MiB |      0%      Default |\n",
+            "|                               |                      |                  N/A |\n",
+            "+-------------------------------+----------------------+----------------------+\n",
+            "                                                                               \n",
+            "+-----------------------------------------------------------------------------+\n",
+            "| Processes:                                                                  |\n",
+            "|  GPU   GI   CI        PID   Type   Process name                  GPU Memory |\n",
+            "|        ID   ID                                                   Usage      |\n",
+            "|=============================================================================|\n",
+            "|  No running processes found                                                 |\n",
+            "+-----------------------------------------------------------------------------+\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "VNZZs-r6iKAV",
+        "outputId": "83601ad9-dab4-41cf-c97e-5661778d2b78",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "# Check that PyTorch sees it\n",
+        "import torch\n",
+        "torch.cuda.is_available()"
+      ],
+      "execution_count": 11,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "True"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 11
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "u0qQzgrBi1OX"
+      },
+      "source": [
+        "### We'll define the following config for the model"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "LTXXutqeDzPi",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "f02c5b6f-9580-48c9-b632-2fb957122eeb"
+      },
+      "source": [
+        "from transformers import RobertaConfig\n",
+        "\n",
+        "config = RobertaConfig(\n",
+        "    vocab_size=52_000,\n",
+        "    max_position_embeddings=514,\n",
+        "    num_attention_heads=12,\n",
+        "    num_hidden_layers=6,\n",
+        "    type_vocab_size=1,\n",
+        ")"
+      ],
+      "execution_count": 12,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "The cache for model files in Transformers v4.22.0 has been updated. Migrating your old cache. This is a one-time only operation. You can interrupt this and resume the migration later on by calling `transformers.utils.move_cache()`.\n",
+            "There was a problem when trying to move your cache:\n",
+            "\n",
+            "  File \"/usr/local/lib/python3.7/dist-packages/transformers/utils/hub.py\", line 1551, in <module>\n",
+            "    move_cache()\n",
+            "\n",
+            "  File \"/usr/local/lib/python3.7/dist-packages/transformers/utils/hub.py\", line 1491, in move_cache\n",
+            "    cached_files = get_all_cached_files(cache_dir=cache_dir)\n",
+            "\n",
+            "  File \"/usr/local/lib/python3.7/dist-packages/transformers/utils/hub.py\", line 1397, in get_all_cached_files\n",
+            "    for file in os.listdir(cache_dir):\n",
+            "\n",
+            "\n",
+            "Please file an issue at https://github.com/huggingface/transformers/issues/new/choose and copy paste this whole message and we will do our best to help.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "yAwQ82JiE5pi"
+      },
+      "source": [
+        "Now let's re-create our tokenizer in transformers"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "4keFBUjQFOD1",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "51ba5441-14d7-4e5f-eeec-5fc9b2170db5"
+      },
+      "source": [
+        "from transformers import RobertaTokenizerFast\n",
+        "\n",
+        "tokenizer = RobertaTokenizerFast.from_pretrained(\"./EsperBERTo\", max_len=512)"
+      ],
+      "execution_count": 13,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "vocab_file vocab.json\n",
+            "merges_file merges.txt\n",
+            "tokenizer_file tokenizer.json\n",
+            "added_tokens_file added_tokens.json\n",
+            "special_tokens_map_file special_tokens_map.json\n",
+            "tokenizer_config_file tokenizer_config.json\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "6yNCw-3hFv9h"
+      },
+      "source": [
+        "Finally let's initialize our model.\n",
+        "\n",
+        "**Important:**\n",
+        "\n",
+        "As we are training from scratch, we only initialize from a config, not from an existing pretrained model or checkpoint."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "BzMqR-dzF4Ro"
+      },
+      "source": [
+        "from transformers import RobertaForMaskedLM\n",
+        "\n",
+        "model = RobertaForMaskedLM(config=config)"
+      ],
+      "execution_count": 14,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "jU6JhBSTKiaM",
+        "outputId": "99c38997-e7cf-4c41-c05a-083cf6ec9769",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "model.num_parameters()\n",
+        "# => 84 million parameters"
+      ],
+      "execution_count": 15,
+      "outputs": [
+        {
+          "output_type": "execute_result",
+          "data": {
+            "text/plain": [
+              "83504416"
+            ]
+          },
+          "metadata": {},
+          "execution_count": 15
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "jBtUHRMliOLM"
+      },
+      "source": [
+        "### Now let's build our training Dataset\n",
+        "\n",
+        "We'll build our dataset by applying our tokenizer to our text file.\n",
+        "\n",
+        "Here, as we only have one text file, we don't even need to customize our `Dataset`. We'll just use the `LineByLineDataset` out-of-the-box."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "GlvP_A-THEEl",
+        "outputId": "710897ba-b22a-419d-8ef4-42d99015453d",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "source": [
+        "%%time\n",
+        "from transformers import LineByLineTextDataset\n",
+        "\n",
+        "dataset = LineByLineTextDataset(\n",
+        "    tokenizer=tokenizer,\n",
+        "    file_path=\"./oscar.eo.txt\",\n",
+        "    block_size=128,\n",
+        ")"
+      ],
+      "execution_count": 16,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.7/dist-packages/transformers/data/datasets/language_modeling.py:125: FutureWarning: This dataset will be removed from the library soon, preprocessing should be handled with the 🤗 Datasets library. You can have a look at this example script for pointers: https://github.com/huggingface/transformers/blob/main/examples/pytorch/language-modeling/run_mlm.py\n",
+            "  FutureWarning,\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "CPU times: user 6min 20s, sys: 8.94 s, total: 6min 29s\n",
+            "Wall time: 2min 19s\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "hDLs73HcIHk5"
+      },
+      "source": [
+        "Like in the [`run_language_modeling.py`](https://github.com/huggingface/transformers/blob/master/examples/language-modeling/run_language_modeling.py) script, we need to define a data_collator.\n",
+        "\n",
+        "This is just a small helper that will help us batch different samples of the dataset together into an object that PyTorch knows how to perform backprop on."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "zTgWPa9Dipk2"
+      },
+      "source": [
+        "from transformers import DataCollatorForLanguageModeling\n",
+        "\n",
+        "data_collator = DataCollatorForLanguageModeling(\n",
+        "    tokenizer=tokenizer, mlm=True, mlm_probability=0.15\n",
+        ")"
+      ],
+      "execution_count": 17,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ri2BIQKqjfHm"
+      },
+      "source": [
+        "### Finally, we are all set to initialize our Trainer"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "YpvnFFmZJD-N",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "fce84346-7750-4476-b214-4b9f8aafb286"
+      },
+      "source": [
+        "from transformers import Trainer, TrainingArguments\n",
+        "\n",
+        "training_args = TrainingArguments(\n",
+        "    output_dir=\"./EsperBERTo\",\n",
+        "    overwrite_output_dir=True,\n",
+        "    num_train_epochs=1,\n",
+        "    per_gpu_train_batch_size=64,\n",
+        "    save_steps=10_000,\n",
+        "    save_total_limit=2,\n",
+        "    prediction_loss_only=True,\n",
+        ")\n",
+        "\n",
+        "trainer = Trainer(\n",
+        "    model=model,\n",
+        "    args=training_args,\n",
+        "    data_collator=data_collator,\n",
+        "    train_dataset=dataset,\n",
+        ")"
+      ],
+      "execution_count": 18,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "Using deprecated `--per_gpu_train_batch_size` argument which will be removed in a future version. Using `--per_device_train_batch_size` is preferred.\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "o6sASa36Nf-N"
+      },
+      "source": [
+        "### Start training"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "VmaHZXzmkNtJ",
+        "outputId": "97120663-05a4-4eca-fe91-705f83b30df4",
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 291
+        }
+      },
+      "source": [
+        "%%time\n",
+        "trainer.train()"
+      ],
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "Using deprecated `--per_gpu_train_batch_size` argument which will be removed in a future version. Using `--per_device_train_batch_size` is preferred.\n",
+            "/usr/local/lib/python3.7/dist-packages/transformers/optimization.py:310: FutureWarning: This implementation of AdamW is deprecated and will be removed in a future version. Use the PyTorch implementation torch.optim.AdamW instead, or set `no_deprecation_warning=True` to disable this warning\n",
+            "  FutureWarning,\n",
+            "***** Running training *****\n",
+            "  Num examples = 974545\n",
+            "  Num Epochs = 1\n",
+            "  Instantaneous batch size per device = 8\n",
+            "  Total train batch size (w. parallel, distributed & accumulation) = 64\n",
+            "  Gradient Accumulation steps = 1\n",
+            "  Total optimization steps = 15228\n",
+            "Using deprecated `--per_gpu_train_batch_size` argument which will be removed in a future version. Using `--per_device_train_batch_size` is preferred.\n"
+          ]
+        },
+        {
+          "output_type": "display_data",
+          "data": {
+            "text/plain": [
+              "<IPython.core.display.HTML object>"
+            ],
+            "text/html": [
+              "\n",
+              "    <div>\n",
+              "      \n",
+              "      <progress value='150' max='15228' style='width:300px; height:20px; vertical-align: middle;'></progress>\n",
+              "      [  150/15228 01:40 < 2:49:51, 1.48 it/s, Epoch 0.01/1]\n",
+              "    </div>\n",
+              "    <table border=\"1\" class=\"dataframe\">\n",
+              "  <thead>\n",
+              " <tr style=\"text-align: left;\">\n",
+              "      <th>Step</th>\n",
+              "      <th>Training Loss</th>\n",
+              "    </tr>\n",
+              "  </thead>\n",
+              "  <tbody>\n",
+              "  </tbody>\n",
+              "</table><p>"
+            ]
+          },
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "_ZkooHz1-_2h"
+      },
+      "source": [
+        "#### 🎉 Save final model (+ tokenizer + config) to disk"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "QDNgPls7_l13"
+      },
+      "source": [
+        "trainer.save_model(\"./EsperBERTo\")"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "d0caceCy_p1-"
+      },
+      "source": [
+        "## 4. Check that the LM actually trained"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "iIQJ8ND_AEhl"
+      },
+      "source": [
+        "Aside from looking at the training and eval losses going down, the easiest way to check whether our language model is learning anything interesting is via the `FillMaskPipeline`.\n",
+        "\n",
+        "Pipelines are simple wrappers around tokenizers and models, and the 'fill-mask' one will let you input a sequence containing a masked token (here, `<mask>`) and return a list of the most probable filled sequences, with their probabilities.\n",
+        "\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "ltXgXyCbAJLY"
+      },
+      "source": [
+        "from transformers import pipeline\n",
+        "\n",
+        "fill_mask = pipeline(\n",
+        "    \"fill-mask\",\n",
+        "    model=\"./EsperBERTo\",\n",
+        "    tokenizer=\"./EsperBERTo\"\n",
+        ")"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "UIvgZ3S6AO0z"
+      },
+      "source": [
+        "# The sun <mask>.\n",
+        "# =>\n",
+        "\n",
+        "fill_mask(\"La suno <mask>.\")"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "i0qCyyhNAWZi"
+      },
+      "source": [
+        "Ok, simple syntax/grammar works. Let’s try a slightly more interesting prompt:\n",
+        "\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {
+        "id": "YZ9HSQxAAbme"
+      },
+      "source": [
+        "fill_mask(\"Jen la komenco de bela <mask>.\")\n",
+        "\n",
+        "# This is the beginning of a beautiful <mask>.\n",
+        "# =>"
+      ],
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "6RsGaD1qAfLP"
+      },
+      "source": [
+        "## 5. Share your model 🎉"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "5oESe8djApQw"
+      },
+      "source": [
+        "Finally, when you have a nice model, please think about sharing it with the community:\n",
+        "\n",
+        "- upload your model using the CLI: `transformers-cli upload`\n",
+        "- write a README.md model card and add it to the repository under `model_cards/`. Your model card should ideally include:\n",
+        "    - a model description,\n",
+        "    - training params (dataset, preprocessing, hyperparameters), \n",
+        "    - evaluation results,\n",
+        "    - intended uses & limitations\n",
+        "    - whatever else is helpful! 🤓\n",
+        "\n",
+        "### **TADA!**\n",
+        "\n",
+        "➡️ Your model has a page on http://huggingface.co/models and everyone can load it using `AutoModel.from_pretrained(\"username/model_name\")`.\n",
+        "\n",
+        "[![tb](https://huggingface.co/blog/assets/01_how-to-train/model_page.png)](https://huggingface.co/julien-c/EsperBERTo-small)\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "aw9ifsgqBI2o"
+      },
+      "source": [
+        "If you want to take a look at models in different languages, check https://huggingface.co/models\n",
+        "\n",
+        "[![all models](https://huggingface.co/front/thumbnails/models.png)](https://huggingface.co/models)\n"
+      ]
+    }
+  ]
+}
