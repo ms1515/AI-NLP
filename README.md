@@ -9,4 +9,4 @@ Contains python notebooks that you can run directly on Google's Colab by pressin
 
 2. **model_pretraining:** Contains the notebooks for pretraining BERT encoder with the security corpus. 
 
-The files: 'Final_BERT_Pretraining_with_corpus.ipynb', 'pretraining_on_security_corpus.ipynb' is of interest to the marker, the rest are all practice examples and can be ignored.
+The files: **'Final_BERT_Pretraining_with_corpus.ipynb', 'pretraining_on_security_corpus.ipynb'** is of interest to the marker, the rest are all practice examples and can be ignored.
