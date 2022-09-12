@@ -1,7 +1,7 @@
 # AI-NLP
 ## Repo for MSc Project: Attack Attribution using Threat Intelligence Reports
 
-Contains python notebooks that you can run directly on Google's Colab by pressing "Run All" under run time.
+Contains python notebooks that you can run directly on Google's Colab by pressing "Run All" under run time. Can run locally too, will just need to have the right version of tensorflow (2.9.1) and other dependencies installed
 
 ### Two Main Folders:
 
